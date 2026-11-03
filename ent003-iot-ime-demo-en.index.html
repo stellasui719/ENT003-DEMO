@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IoT + IME 3D-Printed Filter · Concept Demo</title>
+<style>
+  /* ================= Base ================= */
+  *, *::before, *::after { box-sizing: border-box; }
+  :root {
+    --ink: #16233a;
+    --text: #42566e;
+    --muted: #7d8ea3;
+    --faint: #93a1b3;
+    --line: #e3e9f1;
+    --bg: #f5f7fb;
+    --accent: #4f46e5;
+    --accent-soft: #eef0ff;
+  }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.7 "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .page { max-width: 1000px; margin: 0 auto; padding: 34px 24px 48px; }
+
+  header .eyebrow { font-size: 11.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  h1 { margin: 7px 0 8px; font-size: 22px; line-height: 1.4; color: var(--ink); font-weight: 650; letter-spacing: -.01em; }
+  .sub { margin: 0; max-width: 720px; font-size: 13.5px; color: var(--muted); }
+
+  /* ================= Demo panel (diagram + flow) ================= */
+  .panel {
+    margin-top: 22px;
+    padding: 26px 26px 22px;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, .03), 0 20px 44px -36px rgba(15, 23, 42, .5);
+  }
+  .stage { width: min(500px, 100%); margin: 0 auto; }
+  .diagram { display: block; width: 100%; height: auto; }
+
+  /* Clickable parts */
+  .part { cursor: pointer; outline: none; transition: filter .2s ease; }
+  .part:hover, .part:focus-visible { filter: drop-shadow(0 6px 14px rgba(79, 70, 229, .3)); }
+  .part.is-active { filter: drop-shadow(0 0 11px rgba(79, 70, 229, .5)); }
+
+  /* Small numbered badges */
+  .badge circle { fill: #fff; stroke: #c7d2fe; stroke-width: 1.4; }
+  .badge text { font-size: 11px; font-weight: 600; fill: var(--accent); text-anchor: middle; }
+
+  /* Legend */
+  .legend { display: flex; justify-content: center; flex-wrap: wrap; gap: 4px 18px; margin-top: 14px; }
+  .legend button {
+    display: inline-flex; align-items: center;
+    font: inherit; font-size: 12.5px; color: var(--muted);
+    background: none; border: 0; padding: 2px 0; cursor: pointer;
+    border-bottom: 1px dashed transparent; transition: color .18s, border-color .18s;
+  }
+  .legend button:hover { color: var(--accent); border-bottom-color: #c7d2fe; }
+  .legend b {
+    display: inline-grid; place-items: center;
+    width: 16px; height: 16px; border-radius: 50%;
+    border: 1px solid #c7d2fe; color: var(--accent);
+    font-size: 10px; font-weight: 600; margin-right: 5px;
+  }
+  .hint { margin: 10px 0 0; text-align: center; font-size: 12px; color: var(--faint); }
+
+  .divider { height: 1px; background: var(--line); margin: 24px 0 20px; }
+
+  /* Step flow */
+  .flow { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px; }
+  .fstep {
+    display: inline-flex; align-items: center; gap: 8px;
+    font: inherit; font-size: 13px; color: var(--text);
+    background: #fff; border: 1px solid var(--line); border-radius: 999px;
+    padding: 6px 14px 6px 7px; cursor: pointer;
+    transition: border-color .18s, background .18s, color .18s;
+  }
+  .fstep b {
+    width: 20px; height: 20px; border-radius: 50%; background: #eef2f8; color: var(--muted);
+    font-size: 11.5px; font-weight: 700; display: grid; place-items: center;
+  }
+  .fstep:hover { border-color: #c7d2fe; color: var(--accent); }
+  .fstep[aria-current="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+  .fstep[aria-current="true"] b { background: var(--accent); color: #fff; }
+  .arrow { color: #b9c4d2; font-size: 13px; }
+
+  .flow-desc {
+    margin: 16px auto 0; max-width: 620px;
+    text-align: center; font-size: 13px; color: var(--muted);
+  }
+  .flow-desc b { color: var(--ink); font-weight: 600; }
+
+  /* ================= Text blocks ================= */
+  .notes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 20px; }
+  .note { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
+  .note h2 { margin: 0 0 6px; font-size: 13.5px; color: var(--ink); font-weight: 650; display: flex; align-items: baseline; gap: 8px; }
+  .note h2 i {
+    font-style: normal; font-size: 11px; font-weight: 600; color: var(--accent);
+    background: var(--accent-soft); border: 1px solid #dbe0ff; border-radius: 5px; padding: 1px 6px;
+  }
+  .note p { margin: 0; font-size: 13px; line-height: 1.75; }
+
+  footer { margin-top: 26px; text-align: center; font-size: 12px; color: var(--faint); }
+
+  /* ================= Part popover ================= */
+  .pop {
+    position: fixed; z-index: 50; width: 252px;
+    background: #fff; border: 1px solid #dbe3f0; border-radius: 12px;
+    padding: 13px 15px 14px;
+    box-shadow: 0 20px 44px -18px rgba(15, 23, 42, .38);
+    font-size: 12.5px; line-height: 1.65;
+  }
+  .pop[hidden] { display: none; }
+  .pop h3 { margin: 0; font-size: 13.5px; color: var(--ink); font-weight: 650; padding-right: 20px; }
+  .pop .tag { display: inline-block; margin-top: 3px; font-size: 11px; color: var(--accent); }
+  .pop .row { margin-top: 8px; color: var(--muted); }
+  .pop .row b { display: block; font-size: 10.5px; letter-spacing: .08em; color: var(--accent); font-weight: 600; }
+  .pop-x {
+    position: absolute; top: 7px; right: 7px;
+    width: 22px; height: 22px; line-height: 1; font-size: 15px;
+    color: var(--muted); background: none; border: 0; border-radius: 50%; cursor: pointer;
+  }
+  .pop-x:hover { background: #f1f4f9; color: var(--ink); }
+
+  @media (max-width: 760px) {
+    .notes { grid-template-columns: 1fr; }
+    .arrow { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header>
+    <div class="eyebrow">ENT003 · Appendix Demo</div>
+    <h1>Concept Custom Air Purifier: IoT and IME Additive Manufacturing Filters</h1>
+    <p class="sub">Click any part in the cutaway diagram to see what it does, or use the step buttons below to walk through the full technical workflow. This page is a front-end concept demo only, and all values are simulated.</p>
+  </header>
+
+  <!-- ================= Demo panel ================= -->
+  <section class="panel">
+    <div class="stage">
+      <svg class="diagram" viewBox="0 0 420 500" role="img" aria-label="Simple cutaway diagram of a concept air purifier: IoT multi-sensor module, fan, and 3D-printed custom filter">
+        <defs>
+          <!-- Filter pore texture: shows the pore size produced by 3D printing -->
+          <pattern id="pores" width="13" height="13" patternUnits="userSpaceOnUse">
+            <rect width="13" height="13" fill="#eef2ff"/>
+            <circle cx="3.25" cy="3.25" r="1.7" fill="#a5b4fc"/>
+            <circle cx="9.75" cy="3.25" r="1.7" fill="#a5b4fc"/>
+            <circle cx="3.25" cy="9.75" r="1.7" fill="#a5b4fc"/>
+            <circle cx="9.75" cy="9.75" r="1.7" fill="#a5b4fc"/>
+          </pattern>
+          <linearGradient id="filterShade" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#ffffff" stop-opacity=".7"/>
+            <stop offset=".45" stop-color="#ffffff" stop-opacity="0"/>
+            <stop offset="1" stop-color="#0f172a" stop-opacity=".13"/>
+          </linearGradient>
+          <!-- Fan blade -->
+          <path id="blade" d="M210 208 C217 192 231 183 244 187 C256 191 259 206 250 217 C238 229 220 224 210 208 Z"/>
+        </defs>
+
+        <!-- Outer casing: illustrative only, not interactive -->
+        <g class="shell" pointer-events="none">
+          <rect x="112" y="58" width="196" height="384" rx="34" fill="#fbfdff" stroke="#d7e0ea" stroke-width="1.5"/>
+          <ellipse cx="210" cy="70" rx="74" ry="9" fill="none" stroke="#e6edf5" stroke-width="1.2"/>
+        </g>
+
+        <!-- 1. IoT multi-sensor module -->
+        <g class="part" data-part="sensor" tabindex="0" role="button" aria-label="IoT multi-sensor module, click for details">
+          <rect x="164" y="104" width="92" height="32" rx="9" fill="#eef2ff" stroke="#6366f1" stroke-width="1.5"/>
+          <circle cx="178" cy="120" r="3.4" fill="#6366f1"/>
+          <circle cx="192" cy="120" r="3.4" fill="#818cf8"/>
+          <circle cx="206" cy="120" r="3.4" fill="#6366f1"/>
+          <path d="M224 114 a9 9 0 0 1 0 12" fill="none" stroke="#6366f1" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M231 110 a14 14 0 0 1 0 20" fill="none" stroke="#6366f1" stroke-width="1.5" stroke-linecap="round"/>
+          <g class="badge">
+            <circle cx="252" cy="108" r="9"/>
+            <text x="252" y="112">1</text>
+          </g>
+          <title>IoT multi-sensor module</title>
+        </g>
+
+        <!-- 2. Fan -->
+        <g class="part" data-part="fan" tabindex="0" role="button" aria-label="Fan, click for details">
+          <circle cx="210" cy="208" r="56" fill="#f2f6fb" stroke="#cbd5e1" stroke-width="1.2"/>
+          <use href="#blade" fill="#dfe8f4" stroke="#cbd5e1" stroke-width="1"/>
+          <use href="#blade" fill="#dfe8f4" stroke="#cbd5e1" stroke-width="1" transform="rotate(72 210 208)"/>
+          <use href="#blade" fill="#dfe8f4" stroke="#cbd5e1" stroke-width="1" transform="rotate(144 210 208)"/>
+          <use href="#blade" fill="#dfe8f4" stroke="#cbd5e1" stroke-width="1" transform="rotate(216 210 208)"/>
+          <use href="#blade" fill="#dfe8f4" stroke="#cbd5e1" stroke-width="1" transform="rotate(288 210 208)"/>
+          <circle cx="210" cy="208" r="15" fill="#94a3b8"/>
+          <circle cx="210" cy="208" r="6" fill="#f8fafc"/>
+          <g class="badge">
+            <circle cx="258" cy="178" r="9"/>
+            <text x="258" y="182">2</text>
+          </g>
+          <title>Fan</title>
+        </g>
+
+        <!-- 3. 3D-printed custom filter (core part, emphasised with pore texture and a stronger stroke) -->
+        <g class="part" data-part="filter" tabindex="0" role="button" aria-label="3D-printed custom filter, click for details">
+          <ellipse cx="210" cy="286" rx="46" ry="9" fill="#f8faff" stroke="#818cf8" stroke-width="1.4"/>
+          <rect x="164" y="286" width="92" height="118" rx="10" fill="url(#pores)" stroke="#6366f1" stroke-width="1.8"/>
+          <rect x="164" y="286" width="92" height="118" rx="10" fill="url(#filterShade)" pointer-events="none"/>
+          <ellipse cx="210" cy="404" rx="46" ry="9" fill="#e9eefc" stroke="#818cf8" stroke-width="1.4"/>
+          <g class="badge">
+            <circle cx="252" cy="292" r="9"/>
+            <text x="252" y="296">3</text>
+          </g>
+          <title>3D-printed custom filter</title>
+        </g>
+      </svg>
+    </div>
+
+    <!-- Legend: matches the numbers in the diagram and is also clickable -->
+    <div class="legend" id="legend"></div>
+    <p class="hint">Numbers 1, 2 and 3 mark the three core parts, and clicking a part or the names above opens its description</p>
+
+    <div class="divider"></div>
+
+    <!-- Step flow -->
+    <div class="flow" id="flow"></div>
+    <p class="flow-desc" id="flowDesc"></p>
+  </section>
+
+  <!-- ================= Text blocks ================= -->
+  <section class="notes">
+    <article class="note">
+      <h2><i>01</i>The market problem</h2>
+      <p>Filters on the market come in one standard size with a fixed pore size, so they cannot fit very different pollution scenarios such as formaldehyde in a new flat or pet particles. The purification result ends up much the same everywhere, so consumers just pick the cheapest one and the product slides into price competition.</p>
+    </article>
+
+    <article class="note">
+      <h2><i>02</i>What IoT does</h2>
+      <p>Several sensors collect indoor PM2.5, formaldehyde, temperature and humidity data, and AIoT uploads it to the cloud. Cloud AI identifies the pollution scenario, calculates the filter pore parameters that fit it, and keeps monitoring how worn the filter is.</p>
+    </article>
+
+    <article class="note">
+      <h2><i>03</i>IME 3D-printed filters</h2>
+      <p>IME takes the pore parameters from the cloud and prints a filter with the matching pore size layer by layer, so no mould is needed. Users first receive a set of prefabricated universal filters, and once enough environment data has been collected the company can offer a paid custom filter service.</p>
+    </article>
+
+    <article class="note">
+      <h2><i>04</i>The closed loop</h2>
+      <p>Sense, calculate, print, feed back. Filter wear and usage data keep flowing to the R&amp;D team, the cloud corrects the pore parameters, and IME prints the next generation, so the service becomes more accurate the longer it is used.</p>
+    </article>
+  </section>
+
+  <footer>ENT003 coursework appendix · front-end concept demo only, all values are simulated, with no back end and no network requests</footer>
+</div>
+
+<!-- Part description popover -->
+<div class="pop" id="pop" hidden>
+  <button class="pop-x" id="popX" type="button" aria-label="Close">×</button>
+  <h3 id="popTitle"></h3>
+  <span class="tag" id="popTag"></span>
+  <div class="row"><b>FUNCTION</b><span id="popFn"></span></div>
+  <div class="row"><b>ROLE IN THE CHAIN</b><span id="popRole"></span></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ===== Short descriptions for the three core parts ===== */
+  var PARTS = {
+    sensor: {
+      name: 'IoT Multi-Sensor Module',
+      tag: 'Start of the chain · Sensing',
+      fn: 'Collects indoor environment data such as PM2.5, formaldehyde, temperature, humidity and airflow.',
+      role: 'Hands the data to AIoT for upload to the cloud, where it is used to calculate the filter pore parameters.'
+    },
+    fan: {
+      name: 'Fan',
+      tag: 'Actuator · Airflow',
+      fn: 'Keeps air moving and pushes indoor air through the filter.',
+      role: 'Finer pores filter more thoroughly but add air resistance, so the fan has to match the filter parameters.'
+    },
+    filter: {
+      name: '3D-Printed Custom Filter',
+      tag: 'Core part · Customisable',
+      fn: 'Its pore size is worked out in the cloud for a given scenario and printed layer by layer with additive manufacturing.',
+      role: 'Turns cloud parameters into a real filter; a prefabricated universal filter comes first, and paid customisation follows once usage data builds up.'
+    }
+  };
+
+  /* ===== Four steps: label, explanation, related part ===== */
+  var STEPS = [
+    { id: 1, name: 'IoT Sensing', part: 'sensor', text: 'Several sensors collect indoor PM2.5, formaldehyde, temperature, humidity and airflow data.' },
+    { id: 2, name: 'Cloud Calculation', part: 'sensor', text: 'AIoT uploads the data to the cloud, and cloud AI works out the filter pore parameters that fit the scenario.' },
+    { id: 3, name: 'IME 3D Printing', part: 'filter', text: 'IME prints a custom filter with these pore parameters by additive manufacturing; users start with a prefabricated universal filter.' },
+    { id: 4, name: 'Data Feedback', part: 'filter', text: 'Filter wear and usage data go back to the R&D team, which corrects the parameters and improves the next generation.' }
+  ];
+
+  var pop = document.getElementById('pop');
+  var popTitle = document.getElementById('popTitle');
+  var popTag = document.getElementById('popTag');
+  var popFn = document.getElementById('popFn');
+  var popRole = document.getElementById('popRole');
+  var popX = document.getElementById('popX');
+  var legend = document.getElementById('legend');
+  var flow = document.getElementById('flow');
+  var flowDesc = document.getElementById('flowDesc');
+  var state = { step: 1 };
+
+  /* ===== Popover: open, close and position ===== */
+  function openPart(key, anchorEl) {
+    var data = PARTS[key];
+    if (!data) { return; }
+
+    popTitle.textContent = data.name;
+    popTag.textContent = data.tag;
+    popFn.textContent = data.fn;
+    popRole.textContent = data.role;
+    pop.hidden = false;
+
+    // Anchor the popover to the clicked part: try the right side first, flip left if needed
+    var r = anchorEl.getBoundingClientRect();
+    var w = pop.offsetWidth;
+    var h = pop.offsetHeight;
+    var gap = 16;
+    var left = r.right + gap;
+    if (left + w > window.innerWidth - 12) { left = r.left - w - gap; }
+    left = Math.max(12, Math.min(left, window.innerWidth - w - 12));
+
+    var top = r.top + r.height / 2 - h / 2;
+    top = Math.max(12, Math.min(top, window.innerHeight - h - 12));
+
+    pop.style.left = left + 'px';
+    pop.style.top = top + 'px';
+  }
+
+  function closePop() {
+    pop.hidden = true;
+  }
+
+  /* ===== Step switching: highlight the related part and update one line of text ===== */
+  function setStep(id) {
+    state.step = id;
+    var step = STEPS[id - 1];
+
+    var buttons = flow.querySelectorAll('.fstep');
+    for (var i = 0; i < buttons.length; i++) {
+      buttons[i].setAttribute('aria-current', String(Number(buttons[i].dataset.step) === id));
+    }
+
+    var targets = document.querySelectorAll('.part');
+    for (var j = 0; j < targets.length; j++) {
+      targets[j].classList.toggle('is-active', targets[j].dataset.part === step.part);
+    }
+
+    flowDesc.innerHTML = '<b>' + step.id + ' · ' + step.name + '</b> — ' + step.text;
+  }
+
+  /* ===== Build the legend and the step buttons, then bind the interactions ===== */
+  function buildLegend() {
+    ['sensor', 'fan', 'filter'].forEach(function (key, i) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.innerHTML = '<b>' + (i + 1) + '</b>' + PARTS[key].name;
+      b.addEventListener('click', function () {
+        openPart(key, b);
+      });
+      legend.appendChild(b);
+    });
+  }
+
+  function buildFlow() {
+    STEPS.forEach(function (step, i) {
+      if (i > 0) {
+        var arrow = document.createElement('span');
+        arrow.className = 'arrow';
+        arrow.textContent = '→';
+        flow.appendChild(arrow);
+      }
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'fstep';
+      b.dataset.step = String(step.id);
+      b.innerHTML = '<b>' + step.id + '</b><span>' + step.name + '</span>';
+      b.addEventListener('click', function () { setStep(step.id); });
+      flow.appendChild(b);
+    });
+  }
+
+  function bindParts() {
+    var nodes = document.querySelectorAll('.part');
+    for (var i = 0; i < nodes.length; i++) {
+      (function (el) {
+        var key = el.dataset.part;
+        el.addEventListener('click', function () { openPart(key, el); });
+        el.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+            e.preventDefault();
+            openPart(key, el);
+          }
+        });
+      })(nodes[i]);
+    }
+  }
+
+  popX.addEventListener('click', closePop);
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') { closePop(); }
+  });
+  // Close the popover when clicking outside it or scrolling, so it never drifts away from its part
+  document.addEventListener('click', function (e) {
+    if (!pop.hidden && !pop.contains(e.target) && !e.target.closest('.part, .legend button')) {
+      closePop();
+    }
+  });
+  window.addEventListener('scroll', closePop, true);
+  window.addEventListener('resize', closePop);
+
+  buildLegend();
+  buildFlow();
+  bindParts();
+  setStep(1);
+})();
+</script>
+</body>
+</html>
